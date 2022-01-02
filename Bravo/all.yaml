@@ -1,0 +1,186 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: drupal-mysql-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /drupal-mysql-data
+    type: DirectoryOrCreate
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: drupal-mysql-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: drupal-mysql-secret
+type: Opaque
+data: 
+  MYSQL_ROOT_PASSWORD: cm9vdF9wYXNzd29yZA==
+  MYSQL_DATABASE: ZHJ1cGFsLWRhdGFiYXNl
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: drupal-mysql-service
+spec:
+  type: ClusterIP
+  ports:
+    - name: drupal-mysql
+      port: 3306
+      targetPort: 3306
+      protocol: TCP
+  selector:
+    app: drupal-mysql
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: drupal-mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: drupal-mysql
+  template:
+    metadata:
+      labels:
+        app: drupal-mysql
+    spec:
+      containers:
+        - image: mysql:5.7
+          name: drupal-mysql
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom: 
+                secretKeyRef:
+                  name: drupal-mysql-secret 
+                  key: MYSQL_ROOT_PASSWORD
+            - name: MYSQL_DATABASE
+              valueFrom: 
+                secretKeyRef:
+                  name: drupal-mysql-secret 
+                  key: MYSQL_DATABASE
+          ports:
+            - containerPort: 3306
+              name: drupal-mysql
+          volumeMounts:
+            - name: pvc
+              mountPath: /var/lib/mysql
+              subPath: dbdata
+      volumes:
+        - name: pvc
+          persistentVolumeClaim: 
+            claimName: drupal-mysql-pvc
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: drupal-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /drupal-data
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: drupal-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata: 
+  name: drupal-service
+spec:
+  type: NodePort
+  selector:
+    app: drupal
+  ports:
+    - name: drupal-ports
+      protocol: TCP
+      nodePort: 30095
+      targetPort: 80
+      port: 30095
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels: 
+    app: drupal
+  name: drupal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: drupal
+  template:
+    metadata:
+      labels:
+        app: drupal
+    spec:
+      initContainers:
+        - image: drupal:8.6
+          name: init-sites-volume
+          command: ["/bin/bash", "-c" ]
+          args: ['cp -r /var/www/html/sites/ /data/; chown www-data:www-data /data/ -R']
+          volumeMounts:
+            - name: regular-pvc
+              mountPath: /data
+      containers:
+        - image: drupal:8.6
+          name: drupal
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: regular-pvc
+              mountPath: /var/www/html/modules
+              subPath: modules
+            - name: regular-pvc
+              mountPath: /var/www/html/profiles
+              subPath: profiles
+            - name: regular-pvc
+              mountPath: /var/www/html/sites
+              subPath: sites
+            - name: regular-pvc
+              mountPath: /var/www/html/themes
+              subPath: themes
+
+      volumes:
+        - name: init-pvc
+          persistentVolumeClaim:
+            claimName: drupal-pvc
+        - name: regular-pvc
+          persistentVolumeClaim:
+            claimName: drupal-pvc
