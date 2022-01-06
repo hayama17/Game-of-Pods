@@ -1,10 +1,13 @@
 apiVersion: apps/v1
-kind: Statefulset
+kind: StatefulSet
 metadata:
   name: redis-cluster
 spec:
   serviceName: redis-cluster
   replicas: 6
+  selector:
+    matchLabels:
+      app: redis
   template:
     metadata: 
       labels: 
@@ -18,7 +21,7 @@ spec:
             - name: POD_IP
               valueFrom: 
                 fieldRef:
-                  filedPath: status.podIP
+                  fieldPath: status.podIP
           ports:
             - name: client
               containerPort: 6379
@@ -36,7 +39,7 @@ spec:
           configMap:
             name: redis-cluster-configmap
             defaultMode: 0755
-  volumeclaimTemplates:
+  volumeClaimTemplates:
     - metadata:
         name: data
       spec:
