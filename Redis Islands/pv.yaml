@@ -14,19 +14,6 @@ spec:
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: redis01
-spec:
-  capacity:
-    storage: 1Gi
-  accessModes:
-    - ReadWriteOnce
-  hostPath:
-    path: /redis01
-    type: DirectoryOrCreate
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
   name: redis02
 spec:
   capacity:
